@@ -1,6 +1,8 @@
 ## Regex Filters for Pi-hole
 This is a custom regex filter file for use with Pi-hole v4+ (FTLDNS).
 
+The purpose of this list is to compliment your existing blocklists using powerful regular expressions that can cover a very broad range of domains. A single regular expression can block thousands of 'bad' domains, and can even accommodate for domains following specific patterns that may not even (yet) exist on standard blocklists.
+
 There are also some optional regex filters separate to the main installer that can be added manually (if desired):
 * [Facebook](https://github.com/mmotti/pihole-regex/tree/master/social)
 * [Miscellaneous Items](https://github.com/mmotti/pihole-regex/tree/master/miscellaneous)
@@ -17,6 +19,9 @@ curl -sSl https://raw.githubusercontent.com/mmotti/pihole-regex/master/install.p
 ```
 curl -sSl https://raw.githubusercontent.com/mmotti/pihole-regex/master/uninstall.py | sudo python3
 ```
+
+### False Positives ###
+Due to the restrictive nature of these regexps, you may encounter a small number of false positives for domain names that are similar to ad-serving / tracking domains. I have created a [whitelist file](https://raw.githubusercontent.com/mmotti/pihole-regex/master/whitelist.list) to populate with user reported false positives. Please note that this file is not currently referenced during installation and is intended to be used only if you experience issues or for reference purposes.
 
 ### Keep regexps up-to-date with cron (optional)
 The following instructions will create a cron job to run every monday at 02:30 (adjust the time to suit your needs):

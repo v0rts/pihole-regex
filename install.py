@@ -1,3 +1,4 @@
+import json
 import os
 import sqlite3
 import subprocess
@@ -29,19 +30,16 @@ def fetch_url(url):
     # If there is data
     if response:
         # Strip leading and trailing whitespace
-        response = '\n'.join(x.strip() for x in response.splitlines())
+        response = '\n'.join(x for x in map(str.strip, response.splitlines()))
 
     # Return the hosts
     return response
 
 
 url_regexps_remote = 'https://raw.githubusercontent.com/mmotti/pihole-regex/master/regex.list'
-path_pihole = r'/etc/pihole'
-path_legacy_regex = os.path.join(path_pihole, 'regex.list')
-path_legacy_mmotti_regex = os.path.join(path_pihole, 'mmotti-regex.list')
-path_pihole_db = os.path.join(path_pihole, 'gravity.db')
 install_comment = 'github.com/mmotti/pihole-regex'
 
+cmd_restart = ['pihole', 'restartdns', 'reload']
 
 db_exists = False
 conn = None
@@ -52,6 +50,48 @@ regexps_local = set()
 regexps_mmotti_local = set()
 regexps_legacy_mmotti = set()
 regexps_remove = set()
+
+# Start the docker directory override
+print('[i] Checking for "pihole" docker container')
+
+# Initialise the docker variables
+docker_id = None
+docker_mnt = None
+docker_mnt_src = None
+
+# Check to see whether the default "pihole" docker container is active
+try:
+    docker_id = subprocess.run(['docker', 'ps', '--filter', 'name=pihole', '-q'],
+                               stdout=subprocess.PIPE, universal_newlines=True).stdout.strip()
+# Exception for if docker is not installed
+except FileNotFoundError:
+    pass
+
+# If a pihole docker container was found, locate the first mount
+if docker_id:
+    docker_mnt = subprocess.run(['docker', 'inspect', '--format', '{{ (json .Mounts) }}', docker_id],
+                                stdout=subprocess.PIPE, universal_newlines=True).stdout.strip()
+    # Convert output to JSON and iterate through each dict
+    for json_dict in json.loads(docker_mnt):
+        # If this mount's destination is /etc/pihole
+        if json_dict['Destination'] == r'/etc/pihole':
+            # Use the source path as our target
+            docker_mnt_src = json_dict['Source']
+            break
+
+    # If we successfully found the mount
+    if docker_mnt_src:
+        print('[i] Running in docker installation mode')
+        # Prepend restart commands
+        cmd_restart[0:0] = ['docker', 'exec', '-i', 'pihole']
+else:
+    print('[i] Running in physical installation mode ')
+
+# Set paths
+path_pihole = docker_mnt_src if docker_mnt_src else r'/etc/pihole'
+path_legacy_regex = os.path.join(path_pihole, 'regex.list')
+path_legacy_mmotti_regex = os.path.join(path_pihole, 'mmotti-regex.list')
+path_pihole_db = os.path.join(path_pihole, 'gravity.db')
 
 # Check that pi-hole path exists
 if os.path.exists(path_pihole):
@@ -130,7 +170,7 @@ if db_exists:
         os.remove(path_legacy_mmotti_regex)
 
     print('[i] Restarting Pi-hole')
-    subprocess.call(['pihole', 'restartdns', 'reload'], stdout=subprocess.DEVNULL)
+    subprocess.run(cmd_restart, stdout=subprocess.DEVNULL)
 
     # Prepare final result
     print('[i] Done - Please see your installed regexps below\n')
@@ -182,7 +222,7 @@ else:
             fWrite.write(f'{line}\n')
 
     print('[i] Restarting Pi-hole')
-    subprocess.call(['pihole', 'restartdns', 'reload'], stdout=subprocess.DEVNULL)
+    subprocess.run(cmd_restart, stdout=subprocess.DEVNULL)
 
     # Prepare final result
     print('[i] Done - Please see your installed regexps below\n')
